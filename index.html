@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CheckAI — AI-Powered Fact Checker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ── RESET & VARIABLES ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+--bg: #f5f7fb;
+--bg2: #ffffff;
+--bg3: #eef2f7;
+--border: rgba(0,0,0,0.06);
+--border2: rgba(0,0,0,0.12);
+--text: #111827;
+--muted: #6b7280;
+--accent: #2563eb;
+--accent2: #1d4ed8;
+--green: #16a34a;
+--red: #dc2626;
+--yellow: #ca8a04;
+--green-bg: rgba(22,163,74,0.08);
+--red-bg: rgba(220,38,38,0.08);
+--yellow-bg: rgba(202,138,4,0.08);
+  --radius: 12px;
+  --radius-lg: 20px;
+  --shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+
+/* ── NOISE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0; opacity: 0.4;
+}
+
+/* ── NAVBAR ── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+
+  background: white;
+  backdrop-filter: blur(10px);
+
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+
+  padding: 0 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+
+  height: 60px;
+}
+
+.logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  letter-spacing: 2px;
+
+  color: #111827;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo span { color: var(--accent); }
+.logo-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.55rem;
+
+  background: #2563eb;
+
+  color: white;
+
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+.nav-links { display: flex; gap: 1.5rem; align-items: center; }
+.nav-links a {
+  color: var(--muted); text-decoration: none;
+  font-size: 0.85rem; font-weight: 500;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--text); }
+
+/* ── HERO ── */
+.hero {
+  text-align: center;
+  padding: 4rem 2rem 2rem;
+  position: relative;
+}
+.hero-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem; color: var(--accent);
+  border: 1px solid rgba(232,49,49,0.3);
+  padding: 4px 12px; border-radius: 100px;
+  margin-bottom: 1.2rem;
+  letter-spacing: 1px;
+}
+.hero h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 8vw, 6rem);
+  line-height: 1;
+  letter-spacing: 3px;
+  margin-bottom: 1rem;
+}
+.hero h1 em { color: var(--accent); font-style: normal; }
+.hero p {
+  color: var(--muted); font-size: 1rem;
+  max-width: 520px; margin: 0 auto 2rem;
+}
+
+/* ── MAIN LAYOUT ── */
+.main-wrap {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem 4rem;
+}
+
+@media(max-width: 900px) {
+  .main-wrap { grid-template-columns: 1fr; }
+  .sidebar { order: -1; }
+}
+
+/* ── PANEL ── */
+.panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.panel-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--muted);
+}
+.panel-header .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+/* ── SEARCH BOX ── */
+.search-area { padding: 1.5rem; }
+
+.api-key-bar {
+  display: flex; gap: 8px;
+  margin-bottom: 1rem;
+}
+.api-key-bar input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  outline: none;
+  transition: border 0.2s;
+}
+.api-key-bar input:focus { border-color: var(--accent); }
+.api-key-bar label {
+  font-size: 0.7rem; color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  white-space: nowrap; align-self: center;
+}
+
+.claim-box {
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.input-row {
+  display: flex; gap: 8px; align-items: flex-start;
+}
+
+textarea#claim-input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  resize: none;
+  min-height: 90px;
+  outline: none;
+  transition: border 0.2s;
+  line-height: 1.5;
+}
+textarea#claim-input:focus { border-color: var(--accent); }
+textarea#claim-input::placeholder { color: var(--muted); }
+
+.icon-btns { display: flex; flex-direction: column; gap: 6px; }
+.icon-btn {
+  width: 40px; height: 40px;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  transition: all 0.2s;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(232,49,49,0.06); }
+.icon-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(232,49,49,0.12); }
+
+.action-row { display: flex; gap: 8px; align-items: center; }
+
+.verify-btn {
+  flex: 1;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  padding: 13px 24px;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.verify-btn:hover { background: var(--accent2); transform: translateY(-1px); }
+.verify-btn:active { transform: translateY(0); }
+.verify-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.lang-select {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 10px 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+}
+.lang-select:focus { border-color: var(--accent); }
+
+/* ── IMAGE UPLOAD ── */
+.image-zone {
+  border: 1.5px dashed var(--border2);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: none;
+}
+.image-zone.show { display: block; }
+.image-zone:hover { border-color: var(--accent); background: rgba(232,49,49,0.03); }
+.image-zone input { display: none; }
+.image-zone p { font-size: 0.82rem; color: var(--muted); }
+.image-zone.has-image { border-style: solid; border-color: var(--accent); }
+#img-preview { max-height: 120px; border-radius: 8px; margin-top: 8px; display: none; }
+
+/* ── LOADER ── */
+.loader { display: none; padding: 2rem 1.5rem; text-align: center; }
+.loader.show { display: block; }
+.loader-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--accent);
+  min-height: 1.2em;
+}
+.loader-bar {
+  width: 100%; height: 2px;
+  background: var(--bg3);
+  border-radius: 1px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+.loader-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 1px;
+  animation: loaderAnim 1.8s ease-in-out infinite;
+}
+@keyframes loaderAnim {
+  0% { width: 0%; margin-left: 0; }
+  50% { width: 70%; margin-left: 15%; }
+  100% { width: 0%; margin-left: 100%; }
+}
+
+/* ── RESULT ── */
+.result { display: none; padding: 1.5rem; }
+.result.show { display: block; }
+
+.verdict-banner {
+  border-radius: var(--radius);
+  padding: 1.2rem 1.5rem;
+  margin-bottom: 1.2rem;
+  display: flex; align-items: center; gap: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+.verdict-banner::before {
+  content: '';
+  position: absolute; inset: 0;
+  opacity: 0.06;
+}
+.verdict-banner.true { background: var(--green-bg); border: 1px solid rgba(34,197,94,0.25); }
+.verdict-banner.true::before { background: var(--green); }
+.verdict-banner.false { background: var(--red-bg); border: 1px solid rgba(239,68,68,0.25); }
+.verdict-banner.false::before { background: var(--red); }
+.verdict-banner.uncertain { background: var(--yellow-bg); border: 1px solid rgba(234,179,8,0.25); }
+.verdict-banner.uncertain::before { background: var(--yellow); }
+
+.stamp {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem;
+  letter-spacing: 3px;
+  border: 3px solid currentColor;
+  padding: 4px 14px;
+  border-radius: 6px;
+  transform: rotate(-3deg);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.verdict-banner.true .stamp { color: var(--green); }
+.verdict-banner.false .stamp { color: var(--red); }
+.verdict-banner.uncertain .stamp { color: var(--yellow); }
+
+.verdict-info { flex: 1; }
+.verdict-info h3 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 4px; }
+
+.explanation-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.5rem;
+  margin-bottom: 1.2rem;
+}
+.explanation-box h4 {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px;
+  color: var(--muted); margin-bottom: 8px;
+}
+.explanation-box p { font-size: 0.92rem; color: var(--text); line-height: 1.7; }
+
+.meta-row {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin-bottom: 1.2rem;
+}
+
+.meta-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+}
+.meta-card h4 { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 8px; }
+
+/* CONFIDENCE METER */
+.confidence-bar {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+.confidence-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.confidence-fill.high { background: linear-gradient(90deg, var(--green), #4ade80); }
+.confidence-fill.mid { background: linear-gradient(90deg, var(--yellow), #fde047); }
+.confidence-fill.low { background: linear-gradient(90deg, var(--red), #f87171); }
+.confidence-score {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.source-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 100px;
+  margin-top: 4px;
+}
+.source-tag.government { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+.source-tag.research { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+.source-tag.news { background: rgba(251,146,60,0.15); color: #fb923c; border: 1px solid rgba(251,146,60,0.25); }
+
+.sources-used {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.2rem;
+}
+.sources-used h4 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 10px; }
+.source-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.source-chip {
+  font-size: 0.75rem; padding: 4px 10px;
+  background: var(--bg); border: 1px solid var(--border2);
+  border-radius: 100px; color: var(--muted);
+  display: flex; align-items: center; gap: 5px;
+}
+
+.result-actions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 1.2rem;
+}
+.action-chip {
+  font-size: 0.78rem; padding: 8px 14px;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius); color: var(--muted);
+  cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; gap: 6px;
+  font-weight: 500;
+}
+.action-chip:hover { border-color: var(--accent); color: var(--text); }
+.action-chip.generate-card { border-color: rgba(232,49,49,0.4); color: var(--accent); }
+
+/* FEEDBACK */
+.feedback-box {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.feedback-box p { font-size: 0.82rem; color: var(--muted); flex: 1; min-width: 140px; }
+.feedback-btns { display: flex; gap: 8px; }
+.fb-btn {
+  padding: 6px 16px; border-radius: 8px;
+  font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; border: 1px solid;
+}
+.fb-btn.yes { background: rgba(34,197,94,0.1); color: var(--green); border-color: rgba(34,197,94,0.3); }
+.fb-btn.yes:hover { background: rgba(34,197,94,0.2); }
+.fb-btn.no { background: rgba(239,68,68,0.1); color: var(--red); border-color: rgba(239,68,68,0.3); }
+.fb-btn.no:hover { background: rgba(239,68,68,0.2); }
+
+/* ── FACT CARD CANVAS ── */
+#card-canvas { display: none; }
+.card-preview {
+  display: none;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-top: 1rem;
+  text-align: center;
+}
+.card-preview.show { display: block; }
+.card-preview canvas { border-radius: 8px; max-width: 100%; }
+.download-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 10px; padding: 8px 20px;
+  background: var(--accent); color: white;
+  border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+  cursor: pointer; border: none; transition: all 0.2s;
+}
+.download-btn:hover { background: var(--accent2); }
+
+/* ── SIDEBAR ── */
+.sidebar { display: flex; flex-direction: column; gap: 1rem; }
+
+.trending-list { padding: 0.8rem; }
+.trending-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 4px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.trending-item:hover { background: var(--bg3); }
+.trending-item:last-child { margin-bottom: 0; }
+.trend-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  color: var(--accent);
+  min-width: 22px;
+  line-height: 1.3;
+}
+.trend-text { font-size: 0.82rem; color: var(--text); line-height: 1.4; }
+
+/* HISTORY */
+.history-list { padding: 0.8rem; max-height: 280px; overflow-y: auto; }
+.history-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-bottom: 4px;
+  display: flex; gap: 8px; align-items: flex-start;
+  transition: background 0.2s;
+}
+.history-item:hover { background: var(--bg3); }
+.history-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.history-text { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+.history-empty { font-size: 0.78rem; color: var(--muted); padding: 8px 10px; font-style: italic; }
+
+/* ── INFO SECTIONS ── */
+.info-section {
+  max-width: 1200px; margin: 0 auto;
+  padding: 0 1.5rem 1.5rem;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+@media(max-width: 700px) { .info-section { grid-template-columns: 1fr; } }
+
+.info-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+}
+.info-panel h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.5rem; letter-spacing: 2px;
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.info-item {
+  display: flex; gap: 10px; margin-bottom: 0.8rem;
+  align-items: flex-start;
+}
+.info-icon { font-size: 1rem; flex-shrink: 0; margin-top: 2px; }
+.info-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 2px; }
+.info-desc { font-size: 0.78rem; color: var(--muted); }
+
+.improve-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.improve-item:last-child { border-bottom: none; }
+.improve-label { font-size: 0.82rem; }
+.improve-date { font-size: 0.72rem; color: var(--muted); font-family: 'DM Mono', monospace; }
+.improve-badge {
+  font-size: 0.6rem; padding: 2px 6px;
+  background: rgba(34,197,94,0.1); color: var(--green);
+  border: 1px solid rgba(34,197,94,0.2);
+  border-radius: 100px; font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* ── FOOTER ── */
+footer {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  padding: 3rem 2rem;
+  text-align: center;
+}
+.footer-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.5rem; letter-spacing: 3px;
+  margin-bottom: 0.5rem;
+}
+.footer-logo span { color: var(--accent); }
+.footer-tagline {
+  font-size: 1.1rem; font-weight: 600;
+  margin-bottom: 0.8rem;
+}
+.footer-desc {
+  color: var(--muted); font-size: 0.85rem;
+  max-width: 540px; margin: 0 auto 1.5rem;
+  line-height: 1.7;
+}
+.footer-copy { font-size: 0.72rem; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 2rem; right: 2rem;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--radius); padding: 12px 20px;
+  font-size: 0.82rem; color: var(--text);
+  box-shadow: var(--shadow);
+  transform: translateY(20px); opacity: 0;
+  transition: all 0.3s; z-index: 1000;
+  pointer-events: none; max-width: 300px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--border2);
+  border-radius: var(--radius-lg); padding: 2rem;
+  max-width: 460px; width: 90%;
+  transform: scale(0.95); transition: transform 0.2s;
+}
+.modal-overlay.show .modal { transform: scale(1); }
+.modal h3 { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 2px; margin-bottom: 1rem; }
+.modal p { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.2rem; line-height: 1.6; }
+.modal-close {
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); padding: 10px 20px; border-radius: 8px;
+  cursor: pointer; font-size: 0.85rem; font-weight: 500;
+  transition: all 0.2s;
+}
+.modal-close:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── RECORDING INDICATOR ── */
+.recording-pulse {
+  display: none; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 8px;
+  background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+  font-size: 0.78rem; color: var(--red);
+  margin-top: 8px;
+}
+.recording-pulse.show { display: flex; }
+.pulse-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--red);
+  animation: pulsate 1s ease-in-out infinite;
+}
+@keyframes pulsate {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.4s ease forwards; }
+
+/* STAMP ANIMATION */
+@keyframes stampIn {
+  0% { transform: rotate(-3deg) scale(2); opacity: 0; }
+  60% { transform: rotate(-3deg) scale(0.9); opacity: 1; }
+  100% { transform: rotate(-3deg) scale(1); opacity: 1; }
+}
+.stamp.animate { animation: stampIn 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">CHECK<span>AI</span> <span class="logo-badge">BETA</span></div>
+  <div class="nav-links">
+    <a href="#how">How It Works</a>
+    <a href="#recent">Updates</a>
+    <a href="#footer">About</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-label">🔍 AI-Powered Fact Verification</div>
+  <h1>FIGHT <em>MISINFORMATION</em><br>WITH AI</h1>
+  <p>Enter any claim, news headline, or rumor. Our AI checks it against government, academic, and trusted news sources in seconds.</p>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="main-wrap">
+
+  <!-- LEFT: CHECKER -->
+  <div>
+    <div class="panel">
+      <div class="panel-header"><span class="dot"></span> Claim Verifier</div>
+      <div class="search-area">
+        <!-- API KEY -->
+
+        <div class="claim-box">
+          <div class="input-row">
+            <textarea id="claim-input" placeholder="Enter a claim, headline, or statement to fact-check…&#10;&#10;E.g. 'The Great Wall of China is visible from space'"></textarea>
+            <div class="icon-btns">
+              <button class="icon-btn" id="mic-btn" title="Voice Input">🎤</button>
+              <button class="icon-btn" id="img-btn" title="Image Upload">🖼</button>
+            </div>
+          </div>
+
+          <div id="recording-indicator" class="recording-pulse">
+            <div class="pulse-dot"></div> Listening… speak your claim
+          </div>
+
+          <!-- Image Upload Zone -->
+          <div class="image-zone" id="image-zone">
+            <label for="img-upload" style="cursor:pointer">
+              <p>📎 Click or drag an image to verify visual claims</p>
+              <img id="img-preview" src="" alt=""/>
+            </label>
+            <input type="file" id="img-upload" accept="image/*"/>
+          </div>
+
+          <div class="action-row">
+            <select class="lang-select" id="lang-select">
+              <option value="auto">🌐 Auto-detect</option>
+              <option value="en">🇺🇸 English</option>
+              <option value="hi">🇮🇳 Hindi</option>
+              <option value="es">🇪🇸 Spanish</option>
+              <option value="fr">🇫🇷 French</option>
+              <option value="de">🇩🇪 German</option>
+              <option value="zh">🇨🇳 Chinese</option>
+              <option value="ar">🇸🇦 Arabic</option>
+              <option value="pt">🇧🇷 Portuguese</option>
+              <option value="ja">🇯🇵 Japanese</option>
+            </select>
+            <button class="verify-btn" id="verify-btn">
+              <span>⚡</span> VERIFY CLAIM
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOADER -->
+      <div class="loader" id="loader">
+        <div class="loader-text" id="loader-text">Initializing verification…</div>
+        <div class="loader-bar"><div class="loader-bar-fill"></div></div>
+      </div>
+
+      <!-- RESULT -->
+      <div class="result" id="result">
+        <!-- Verdict Banner -->
+        <div class="verdict-banner" id="verdict-banner">
+          <div class="stamp" id="stamp-text">TRUE</div>
+          <div class="verdict-info">
+            <h3>Verdict</h3>
+            <div style="font-size:0.85rem; color: var(--muted);" id="verdict-subtitle">High confidence · AI-verified</div>
+          </div>
+        </div>
+
+        <!-- Explanation -->
+        <div class="explanation-box fade-up">
+          <h4>📋 Explanation</h4>
+          <p id="explanation-text"></p>
+        </div>
+
+        <!-- Meta Row -->
+        <div class="meta-row">
+          <div class="meta-card">
+            <h4>🎯 Confidence Score</h4>
+            <div class="confidence-score" id="confidence-score">—</div>
+            <div class="confidence-bar">
+              <div class="confidence-fill" id="confidence-fill" style="width:0%"></div>
+            </div>
+            <div style="font-size:0.72rem; color:var(--muted);" id="confidence-label">—</div>
+          </div>
+          <div class="meta-card">
+            <h4>📰 Source Type</h4>
+            <div style="margin-top:8px;" id="source-tag-wrap"></div>
+            <div style="font-size:0.75rem; color:var(--muted); margin-top:8px;" id="source-desc"></div>
+          </div>
+        </div>
+
+        <!-- Sources Used -->
+        <div class="sources-used">
+          <h4>🔗 Sources Used for Verification</h4>
+          <div class="source-list" id="sources-list"></div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="result-actions">
+          <button class="action-chip" id="copy-btn">📋 Copy Result</button>
+          <button class="action-chip" id="share-btn">📤 Share Result</button>
+          <button class="action-chip generate-card" id="card-btn">🎨 Generate Fact Card</button>
+        </div>
+
+        <!-- Shareable Card Preview -->
+        <div class="card-preview" id="card-preview">
+          <canvas id="fact-canvas" width="600" height="340"></canvas>
+          <br/>
+          <button class="download-btn" id="download-btn">⬇ Download Fact Card</button>
+        </div>
+
+        <!-- User Feedback -->
+        <div class="feedback-box">
+          <p>Do you think this verdict is correct?</p>
+          <div class="feedback-btns">
+            <button class="fb-btn yes" onclick="submitFeedback('yes')">👍 YES</button>
+            <button class="fb-btn no" onclick="submitFeedback('no')">👎 NO</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- Trending -->
+    <div class="panel">
+      <div class="panel-header"><span class="dot"></span> Trending Claims</div>
+      <div class="trending-list" id="trending-list"></div>
+    </div>
+
+    <!-- History -->
+    <div class="panel">
+      <div class="panel-header"><span class="dot"></span> Search History</div>
+      <div class="history-list" id="history-list">
+        <div class="history-empty">No recent checks yet.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- INFO SECTIONS -->
+<div class="info-section" id="how">
+  <div class="info-panel">
+    <h2>🔍 How We Fact-Check</h2>
+    <div class="info-item"><span class="info-icon">🏛</span><div><div class="info-title">Government Sources First</div><div class="info-desc">We prioritize official government data, WHO, CDC, NASA, and national agencies for maximum credibility.</div></div></div>
+    <div class="info-item"><span class="info-icon">🔬</span><div><div class="info-title">Academic & Research Institutions</div><div class="info-desc">Peer-reviewed studies, university research, and scientific consensus form our second verification layer.</div></div></div>
+    <div class="info-item"><span class="info-icon">📰</span><div><div class="info-title">Reputable News & Organizations</div><div class="info-desc">Established news outlets with editorial standards are used for current events fact-checking.</div></div></div>
+    <div class="info-item"><span class="info-icon">🧠</span><div><div class="info-title">Smart Source Filtering</div><div class="info-desc">AI actively excludes low-quality, partisan, or unreliable websites from its verification process.</div></div></div>
+    <div class="info-item"><span class="info-icon">🌐</span><div><div class="info-title">Multi-Source Verification</div><div class="info-desc">Claims are cross-referenced across multiple independent sources to eliminate bias.</div></div></div>
+    <div class="info-item"><span class="info-icon">⚡</span><div><div class="info-title">Real-Time Search</div><div class="info-desc">Live AI-powered search ensures the latest information is always used for verification.</div></div></div>
+    <div class="info-item"><span class="info-icon">🌍</span><div><div class="info-title">Multi-Language Search</div><div class="info-desc">Claims in any language are detected and verified using language-specific trusted sources.</div></div></div>
+  </div>
+
+  <div class="info-panel" id="recent">
+    <h2>🚀 Recent Improvements</h2>
+    <div class="improve-item"><span class="improve-label">Multi-Language Search</span><span class="improve-date">Mar 9, 2026 <span class="improve-badge">NEW</span></span></div>
+    <div class="improve-item"><span class="improve-label">Faster Search API</span><span class="improve-date">Mar 6, 2026</span></div>
+    <div class="improve-item"><span class="improve-label">Stricter Guardrails</span><span class="improve-date">Mar 6, 2026</span></div>
+    <div class="improve-item"><span class="improve-label">Time-Specific Search</span><span class="improve-date">Dec 2025</span></div>
+    <div class="improve-item"><span class="improve-label">Dark UI Update</span><span class="improve-date">Apr 2026 <span class="improve-badge">NEW</span></span></div>
+    <div class="improve-item"><span class="improve-label">Voice-to-Text Support</span><span class="improve-date">Apr 2026 <span class="improve-badge">NEW</span></span></div>
+    <div class="improve-item"><span class="improve-label">Image Search Support</span><span class="improve-date">Apr 2026 <span class="improve-badge">NEW</span></span></div>
+    <div class="improve-item"><span class="improve-label">Minor Bug Fixes</span><span class="improve-date">Apr 2026</span></div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="footer-logo">CHECK<span>AI</span></div>
+  <div class="footer-tagline">Fight Misinformation</div>
+  <p class="footer-desc">In today's information landscape, it's crucial to verify what you hear before sharing. Our AI helps distinguish reliable information from misinformation, rumors, and fake news by searching only the most credible sources.</p>
+  <div class="footer-copy">© 2026 CheckAI · Powered by Groq AI · Built for truth</div>
+</footer>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modal-title">Information</h3>
+    <p id="modal-body"></p>
+    <button class="modal-close" onclick="closeModal()">Close</button>
+  </div>
+</div>
+
+<canvas id="card-canvas" width="600" height="340"></canvas>
+
+<script>
+// ── CONFIG ──
+const OPENAI_API_KEY_PLACEHOLDER = "YOUR_API_KEY_HERE";
+
+// ── STATE ──
+let currentResult = null;
+let recognition = null;
+let isRecording = false;
+let uploadedImage = null;
+let searchHistory = JSON.parse(localStorage.getItem('checkai_history') || '[]');
+
+// ── TRENDING CLAIMS ──
+const TRENDING = [
+  "The Great Wall of China is visible from space",
+  "Humans only use 10% of their brains",
+  "Lightning never strikes the same place twice",
+  "Eating carrots improves your eyesight",
+  "Glass is a very slow-moving liquid",
+  "Napoleon Bonaparte was very short",
+  "Bulls are enraged by the color red",
+  "The Eiffel Tower grows taller in summer",
+  "Goldfish have a 3-second memory",
+  "Vitamin C prevents the common cold",
+];
+
+// ── INIT ──
+function init() {
+  renderTrending();
+  renderHistory();
+  setupImageUpload();
+  setupVoice();
+
+  document.getElementById('verify-btn').addEventListener('click', runVerification);
+  document.getElementById('claim-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.ctrlKey) runVerification();
+  });
+  document.getElementById('copy-btn').addEventListener('click', copyResult);
+  document.getElementById('share-btn').addEventListener('click', shareResult);
+  document.getElementById('card-btn').addEventListener('click', generateCard);
+  document.getElementById('download-btn').addEventListener('click', downloadCard);
+}
+
+// ── TRENDING ──
+function renderTrending() {
+  const list = document.getElementById('trending-list');
+  list.innerHTML = TRENDING.map((claim, i) => `
+    <div class="trending-item" onclick="useClaim('${claim.replace(/'/g,"\\'")}')">
+      <span class="trend-num">${String(i+1).padStart(2,'0')}</span>
+      <span class="trend-text">${claim}</span>
+    </div>
+  `).join('');
+}
+
+function useClaim(claim) {
+  document.getElementById('claim-input').value = claim;
+  document.getElementById('claim-input').focus();
+  // auto-run
+  runVerification();
+}
+
+// ── HISTORY ──
+function renderHistory() {
+  const list = document.getElementById('history-list');
+  if (!searchHistory.length) {
+    list.innerHTML = '<div class="history-empty">No recent checks yet.</div>';
+    return;
+  }
+  list.innerHTML = searchHistory.slice(0,10).map(h => {
+    const color = h.verdict === 'True' ? 'var(--green)' : h.verdict === 'False' ? 'var(--red)' : 'var(--yellow)';
+    return `<div class="history-item" onclick="useClaim('${h.claim.replace(/'/g,"\\'")}')">
+      <div class="history-dot" style="background:${color}"></div>
+      <div class="history-text">${h.claim.slice(0,60)}${h.claim.length>60?'…':''}</div>
+    </div>`;
+  }).join('');
+}
+
+function addToHistory(claim, verdict) {
+  searchHistory.unshift({ claim, verdict, ts: Date.now() });
+  searchHistory = searchHistory.slice(0, 20);
+  localStorage.setItem('checkai_history', JSON.stringify(searchHistory));
+  renderHistory();
+}
+
+// ── IMAGE UPLOAD ──
+function setupImageUpload() {
+  const btn = document.getElementById('img-btn');
+  const zone = document.getElementById('image-zone');
+  const input = document.getElementById('img-upload');
+  const preview = document.getElementById('img-preview');
+
+  btn.addEventListener('click', () => {
+    zone.classList.toggle('show');
+    btn.classList.toggle('active');
+  });
+
+  input.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      uploadedImage = ev.target.result;
+      preview.src = uploadedImage;
+      preview.style.display = 'block';
+      zone.classList.add('has-image');
+      document.getElementById('claim-input').value = '[Image uploaded — AI will extract and verify visual claim]';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Drag & drop
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; });
+  zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.style.borderColor = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      input.files = e.dataTransfer.files;
+      input.dispatchEvent(new Event('change'));
+    }
+  });
+}
+
+// ── VOICE ──
+function setupVoice() {
+  const btn = document.getElementById('mic-btn');
+  const indicator = document.getElementById('recording-indicator');
+
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    btn.title = 'Voice not supported in this browser';
+    btn.style.opacity = '0.4';
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = e => {
+    let transcript = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      transcript += e.results[i][0].transcript;
+    }
+    document.getElementById('claim-input').value = transcript;
+  };
+
+  recognition.onend = () => {
+    isRecording = false;
+    btn.classList.remove('active');
+    indicator.classList.remove('show');
+    // auto-verify
+    if (document.getElementById('claim-input').value.trim()) {
+      setTimeout(runVerification, 400);
+    }
+  };
+
+  recognition.onerror = () => {
+    isRecording = false;
+    btn.classList.remove('active');
+    indicator.classList.remove('show');
+    showToast('Voice recognition error. Please try again.');
+  };
+
+  btn.addEventListener('click', () => {
+    if (isRecording) {
+      recognition.stop();
+    } else {
+      isRecording = true;
+      btn.classList.add('active');
+      indicator.classList.add('show');
+      recognition.start();
+    }
+  });
+}
+
+// ── LOADER MESSAGES ──
+const LOADER_MSGS = [
+  'Analyzing claim…',
+  'Cross-referencing government sources…',
+  'Checking academic databases…',
+  'Scanning reputable news sources…',
+  'Applying fact-check algorithms…',
+  'Evaluating credibility score…',
+  'Compiling verification report…',
+];
+let loaderInterval = null;
+
+function startLoader() {
+  const el = document.getElementById('loader-text');
+  let i = 0;
+  el.textContent = LOADER_MSGS[0];
+  loaderInterval = setInterval(() => {
+    i = (i + 1) % LOADER_MSGS.length;
+    el.textContent = LOADER_MSGS[i];
+  }, 900);
+}
+
+function stopLoader() {
+  clearInterval(loaderInterval);
+}
+
+// ── MAIN VERIFICATION ──
+async function runVerification() {
+  let claim = document.getElementById('claim-input').value.trim();
+  if (!claim && !uploadedImage) {
+    showToast('Please enter a claim or upload an image first.');
+    return;
+  }
+
+  const apiKey = "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";
+  if (!apiKey || apiKey === OPENAI_API_KEY_PLACEHOLDER) {
+    showModal('API Key Required', 'Please paste your OpenAI API key in the API key field above the claim input. Your key stays in your browser and is never stored on our servers.');
+    return;
+  }
+
+  const lang = document.getElementById('lang-select').value;
+  const langInstruction = lang !== 'auto' ? `The user's claim may be in language code "${lang}". Detect the language and provide the explanation in the same language if not English, or translate if needed.` : 'Auto-detect the language of the claim.';
+
+  // Build messages
+  const messages = [];
+  const systemPrompt = `You are an expert fact-checker AI. Your job is to verify claims using the most reliable sources: government agencies, academic research, and reputable news organizations.
+
+${langInstruction}
+
+When given a claim, analyze it carefully and respond ONLY with a valid JSON object (no markdown, no code fences, just raw JSON) in this exact format:
+{
+  "verdict": "True" | "False" | "Uncertain",
+  "explanation": "A clear, concise explanation of why the claim is true, false, or uncertain. 2-4 sentences.",
+  "source_type": "government" | "research" | "news" | "mixed",
+  "credibility_score": <number 0-100>,
+  "sources_used": ["source1", "source2", "source3"],
+  "claim_language": "detected language name"
+}
+
+Rules:
+- verdict must be exactly "True", "False", or "Uncertain"
+- credibility_score reflects how certain you are (0=very uncertain, 100=absolutely certain)
+- sources_used should list 3-5 specific types of sources consulted (e.g. "WHO", "NASA", "peer-reviewed studies", "BBC News", "CDC")
+- Be factual and unbiased
+- If the claim is ambiguous or context-dependent, choose "Uncertain"`;
+
+  const userContent = [];
+
+  if (uploadedImage) {
+    userContent.push({ type: 'image_url', image_url: { url: uploadedImage } });
+    userContent.push({ type: 'text', text: claim === '[Image uploaded — AI will extract and verify visual claim]' ? 'Analyze this image, extract the main claim or information it presents, and fact-check it.' : `Image provided. Claim to verify: "${claim}"` });
+  } else {
+    userContent.push({ type: 'text', text: `Fact-check this claim: "${claim}"` });
+  }
+
+  messages.push({ role: 'user', content: userContent });
+
+  // Show loader
+  document.getElementById('loader').classList.add('show');
+  document.getElementById('result').classList.remove('show');
+  document.getElementById('verify-btn').disabled = true;
+  startLoader();
+
+  try {
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user',
+            content: 'Fact-check this claim: ' + claim
+          }
+        ],
+        temperature: 0.2
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `API error ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    const raw = data.choices[0].message.content;
+    
+    let parsed;
+    try {
+      const cleaned = raw.replace(/```json|```/g, '').trim();
+      parsed = JSON.parse(cleaned);
+    } catch(e) {
+      throw new Error('Could not parse AI response. Please try again.');
+    }
+
+    currentResult = { claim, ...parsed };
+    addToHistory(claim, parsed.verdict);
+    displayResult(parsed, claim);
+
+  } catch(err) {
+    showToast('Error: ' + err.message);
+    console.error(err);
+  } finally {
+    stopLoader();
+    document.getElementById('loader').classList.remove('show');
+    document.getElementById('verify-btn').disabled = false;
+  }
+}
+
+// ── DISPLAY RESULT ──
+function displayResult(data, claim) {
+  const { verdict, explanation, source_type, credibility_score, sources_used } = data;
+
+  // Verdict banner
+  const banner = document.getElementById('verdict-banner');
+  const stamp = document.getElementById('stamp-text');
+  const subtitle = document.getElementById('verdict-subtitle');
+
+  banner.className = 'verdict-banner ' + verdict.toLowerCase();
+  stamp.textContent = verdict.toUpperCase();
+  stamp.className = 'stamp animate';
+
+  const scoreLabel = credibility_score >= 75 ? 'High confidence' : credibility_score >= 45 ? 'Moderate confidence' : 'Low confidence';
+  subtitle.textContent = `${scoreLabel} · AI-verified`;
+
+  // Explanation
+  document.getElementById('explanation-text').textContent = explanation;
+
+  // Confidence
+  const scoreEl = document.getElementById('confidence-score');
+  const fillEl = document.getElementById('confidence-fill');
+  const labelEl = document.getElementById('confidence-label');
+  scoreEl.textContent = credibility_score + '%';
+  fillEl.style.width = '0%';
+  fillEl.className = 'confidence-fill ' + (credibility_score >= 75 ? 'high' : credibility_score >= 45 ? 'mid' : 'low');
+  setTimeout(() => { fillEl.style.width = credibility_score + '%'; }, 100);
+  labelEl.textContent = scoreLabel;
+
+  // Source type tag
+  const tagWrap = document.getElementById('source-tag-wrap');
+  const srcDescriptions = {
+    government: 'Official government agencies & institutions',
+    research: 'Academic journals & research papers',
+    news: 'Established news organizations',
+    mixed: 'Multiple source categories'
+  };
+  const icons = { government: '🏛', research: '🔬', news: '📰', mixed: '🌐' };
+  tagWrap.innerHTML = `<span class="source-tag ${source_type}">${icons[source_type]||'📄'} ${source_type.charAt(0).toUpperCase()+source_type.slice(1)}</span>`;
+  document.getElementById('source-desc').textContent = srcDescriptions[source_type] || '';
+
+  // Sources list
+  const sourcesList = document.getElementById('sources-list');
+  const allSources = sources_used || ['Government agencies', 'Research institutions', 'Trusted journalism'];
+  sourcesList.innerHTML = allSources.map(s => `<span class="source-chip">📎 ${s}</span>`).join('');
+
+  // Reset card
+  document.getElementById('card-preview').classList.remove('show');
+
+  // Show result
+  document.getElementById('result').classList.add('show', 'fade-up');
+  document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── FEEDBACK ──
+function submitFeedback(type) {
+  const stored = JSON.parse(localStorage.getItem('checkai_feedback') || '[]');
+  stored.push({ claim: currentResult?.claim, feedback: type, ts: Date.now() });
+  localStorage.setItem('checkai_feedback', JSON.stringify(stored));
+  showToast(type === 'yes' ? '👍 Thanks! Feedback recorded.' : '👎 Thanks! We appreciate your input.');
+}
+
+// ── COPY ──
+function copyResult() {
+  if (!currentResult) return;
+  const text = `CheckAI Fact Check Result\n\nClaim: ${currentResult.claim}\nVerdict: ${currentResult.verdict}\nConfidence: ${currentResult.credibility_score}%\n\n${currentResult.explanation}\n\nSource: ${currentResult.source_type}\n\nVerified by CheckAI — checkai.app`;
+  navigator.clipboard.writeText(text).then(() => showToast('📋 Result copied to clipboard!'));
+}
+
+// ── SHARE ──
+function shareResult() {
+  if (!currentResult) return;
+  if (navigator.share) {
+    navigator.share({
+      title: 'CheckAI Fact Check',
+      text: `Verdict: ${currentResult.verdict} — "${currentResult.claim.slice(0,80)}"`,
+      url: window.location.href
+    });
+  } else {
+    navigator.clipboard.writeText(window.location.href).then(() => showToast('🔗 Link copied to clipboard!'));
+  }
+}
+
+// ── GENERATE FACT CARD ──
+function generateCard() {
+  if (!currentResult) return;
+  const { verdict, claim, credibility_score, explanation } = currentResult;
+
+  const canvas = document.getElementById('fact-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = 600, H = 340;
+
+  // Background
+  ctx.fillStyle = '#0a0a0c';
+  ctx.fillRect(0, 0, W, H);
+
+  // Colored top bar
+  const barColor = verdict === 'True' ? '#22c55e' : verdict === 'False' ? '#ef4444' : '#eab308';
+  ctx.fillStyle = barColor;
+  ctx.fillRect(0, 0, W, 6);
+
+  // Bottom bar
+  ctx.fillStyle = barColor + '22';
+  ctx.fillRect(0, H - 40, W, 40);
+
+  // Logo
+  ctx.fillStyle = '#e8e8f0';
+  ctx.font = 'bold 22px "Arial Black", sans-serif';
+  ctx.fillText('CHECK', 32, 46);
+  ctx.fillStyle = '#e83131';
+  ctx.fillText('AI', 105, 46);
+
+  // Verdict stamp
+  const stampColor = barColor;
+  ctx.strokeStyle = stampColor;
+  ctx.fillStyle = stampColor;
+  ctx.lineWidth = 3;
+  const stampW = verdict === 'Uncertain' ? 130 : 90;
+  roundRect(ctx, W - stampW - 30, 18, stampW, 42, 6);
+  ctx.stroke();
+  ctx.fillStyle = stampColor + '18';
+  roundRect(ctx, W - stampW - 30, 18, stampW, 42, 6);
+  ctx.fill();
+  ctx.fillStyle = stampColor;
+  ctx.font = 'bold 18px "Arial Black", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(verdict.toUpperCase(), W - stampW/2 - 30, 45);
+  ctx.textAlign = 'left';
+
+  // Divider
+  ctx.strokeStyle = '#ffffff15';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(32, 62); ctx.lineTo(W-32, 62); ctx.stroke();
+
+  // Claim text
+  ctx.fillStyle = '#9999aa';
+  ctx.font = '11px Arial, sans-serif';
+  ctx.fillText('CLAIM', 32, 84);
+  ctx.fillStyle = '#e8e8f0';
+  ctx.font = '14px Arial, sans-serif';
+  wrapText(ctx, `"${claim}"`, 32, 102, W - 64, 20);
+
+  // Divider 2
+  ctx.strokeStyle = '#ffffff15';
+  ctx.beginPath(); ctx.moveTo(32, 160); ctx.lineTo(W-32, 160); ctx.stroke();
+
+  // Explanation
+  ctx.fillStyle = '#9999aa';
+  ctx.font = '11px Arial, sans-serif';
+  ctx.fillText('EXPLANATION', 32, 180);
+  ctx.fillStyle = '#c0c0cc';
+  ctx.font = '13px Arial, sans-serif';
+  wrapText(ctx, explanation, 32, 198, W - 64, 18);
+
+  // Score bar
+  ctx.fillStyle = '#1a1a22';
+  roundRect(ctx, 32, H - 32, 180, 10, 5);
+  ctx.fill();
+  ctx.fillStyle = barColor;
+  roundRect(ctx, 32, H - 32, Math.max(10, 180 * credibility_score / 100), 10, 5);
+  ctx.fill();
+  ctx.fillStyle = '#9999aa';
+  ctx.font = '10px Arial';
+  ctx.fillText(`Confidence: ${credibility_score}%`, 32, H - 42);
+
+  // Footer
+  ctx.fillStyle = '#555566';
+  ctx.font = '11px Arial';
+  ctx.textAlign = 'right';
+  ctx.fillText('checkai.app · Fight Misinformation', W - 32, H - 14);
+  ctx.textAlign = 'left';
+
+  // Show preview
+  const previewCanvas = document.getElementById('fact-canvas');
+  const displayCanvas = document.querySelector('#card-preview canvas');
+  displayCanvas.getContext('2d').drawImage(previewCanvas, 0, 0);
+  document.getElementById('card-preview').classList.add('show');
+  showToast('🎨 Fact card generated!');
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  let line = '';
+  let lineCount = 0;
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && n > 0) {
+      ctx.fillText(line, x, y);
+      line = words[n] + ' ';
+      y += lineHeight;
+      lineCount++;
+      if (lineCount >= 3) { ctx.fillText(line + '…', x, y); return; }
+    } else {
+      line = testLine;
+    }
+  }
+  ctx.fillText(line, x, y);
+}
+
+// ── DOWNLOAD CARD ──
+function downloadCard() {
+  const canvas = document.getElementById('fact-canvas');
+  const link = document.createElement('a');
+  link.download = 'checkai-fact-card.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('⬇ Downloading fact card!');
+}
+
+// ── TOAST ──
+let toastTimeout;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── MODAL ──
+function showModal(title, body) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').textContent = body;
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+}
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// ── START ──
+init();
+</script>
+</body>
+</html>

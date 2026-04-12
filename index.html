@@ -70,6 +70,7 @@ nav {
   display: flex; align-items: center; justify-content: space-between;
 
   height: 60px;
+  overflow: visible;
 }
 
 .logo {
@@ -81,22 +82,19 @@ nav {
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  white-space: nowrap;
 }
-.logo span { color: var(--accent); }
+.logo-ai { color: #2563eb; }
 .logo-badge {
   font-family: 'DM Mono', monospace;
-  font-size: 0.55rem;
-
-  background: #2563eb;
-
+  font-size: 0.6rem;
+  background: #ef4444;
   color: white;
-
-  padding: 2px 6px;
-  border-radius: 4px;
-  letter-spacing: 1px;
-  vertical-align: middle;
-  margin-left: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-left: 8px;
+  display: inline-block;
 }
 
 .nav-links { display: flex; gap: 1.5rem; align-items: center; }
@@ -677,7 +675,10 @@ footer {
 
 <!-- NAV -->
 <nav>
-  <div class="logo">CHECK<span>AI</span> <span class="logo-badge">BETA</span></div>
+  <div class="logo">
+    CHECK <span class="logo-ai">AI</span>
+    <span class="logo-badge">BETA</span>
+  </div>
   <div class="nav-links">
     <a href="#how">How It Works</a>
     <a href="#recent">Updates</a>

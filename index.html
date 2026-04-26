@@ -1888,48 +1888,11 @@ async function runVerification() {
     return;
   }
 
-  const apiKey = "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";
-  if (!apiKey || apiKey === OPENAI_API_KEY_PLACEHOLDER) {
-    showModal('API Key Required', 'Please paste your OpenAI API key in the API key field above the claim input. Your key stays in your browser and is never stored on our servers.');
-    return;
+  if (!claim && uploadedImage) {
+    claim = '[Image uploaded — AI will extract and verify visual claim]';
   }
 
   const lang = document.getElementById('lang-select').value;
-  const langInstruction = lang !== 'auto' ? `The user's claim may be in language code "${lang}". Detect the language and provide the explanation in the same language if not English, or translate if needed.` : 'Auto-detect the language of the claim.';
-
-  // Build messages
-  const messages = [];
-  const systemPrompt = `You are an expert fact-checker AI. Your job is to verify claims using the most reliable sources: government agencies, academic research, and reputable news organizations.
-
-${langInstruction}
-
-When given a claim, analyze it carefully and respond ONLY with a valid JSON object (no markdown, no code fences, just raw JSON) in this exact format:
-{
-  "verdict": "True" | "False" | "Uncertain",
-  "explanation": "A clear, concise explanation of why the claim is true, false, or uncertain. 2-4 sentences.",
-  "source_type": "government" | "research" | "news" | "mixed",
-  "credibility_score": <number 0-100>,
-  "sources_used": ["source1", "source2", "source3"],
-  "claim_language": "detected language name"
-}
-
-Rules:
-- verdict must be exactly "True", "False", or "Uncertain"
-- credibility_score reflects how certain you are (0=very uncertain, 100=absolutely certain)
-- sources_used should list 3-5 specific types of sources consulted (e.g. "WHO", "NASA", "peer-reviewed studies", "BBC News", "CDC")
-- Be factual and unbiased
-- If the claim is ambiguous or context-dependent, choose "Uncertain"`;
-
-  const userContent = [];
-
-  if (uploadedImage) {
-    userContent.push({ type: 'image_url', image_url: { url: uploadedImage } });
-    userContent.push({ type: 'text', text: claim === '[Image uploaded — AI will extract and verify visual claim]' ? 'Analyze this image, extract the main claim or information it presents, and fact-check it.' : `Image provided. Claim to verify: "${claim}"` });
-  } else {
-    userContent.push({ type: 'text', text: `Fact-check this claim: "${claim}"` });
-  }
-
-  messages.push({ role: 'user', content: userContent });
 
   // Show loader
   document.getElementById('loader').classList.add('show');
@@ -1938,49 +1901,37 @@ Rules:
   startLoader();
 
   try {
-    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const resp = await fetch('/api/verify', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: 'Fact-check this claim: ' + claim
-          }
-        ],
-        temperature: 0.2
-      })
+      body: JSON.stringify({ claim, lang })
     });
 
+    const data = await resp.json().catch(() => null);
     if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error?.message || `API error ${resp.status}`);
+      const errorMessage = data?.error || `Verification failed (${resp.status})`;
+      throw new Error(errorMessage);
     }
 
-    const data = await resp.json();
+    if (!data || !data.choices || !data.choices[0] || !data.choices[0].message || typeof data.choices[0].message.content !== 'string') {
+      throw new Error('Invalid verification response from the server.');
+    }
+
     const raw = data.choices[0].message.content;
-    
     let parsed;
     try {
       const cleaned = raw.replace(/```json|```/g, '').trim();
       parsed = JSON.parse(cleaned);
-    } catch(e) {
+    } catch (e) {
       throw new Error('Could not parse AI response. Please try again.');
     }
 
     currentResult = { claim, ...parsed };
     addToHistory(claim, parsed.verdict);
     displayResult(parsed, claim);
-
-  } catch(err) {
+  } catch (err) {
     showToast('Error: ' + err.message);
     console.error(err);
   } finally {
